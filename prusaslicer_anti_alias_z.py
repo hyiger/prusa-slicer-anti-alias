@@ -7,8 +7,17 @@ into this script for easier PrusaSlicer post-processing deployment.
 
 
 from __future__ import annotations
+def _print_missing_stl_error(stl_path: str) -> None:
+    print(
+        "ERROR: STL file not found.\n"
+        f"Expected STL at:\n  {stl_path}\n\n"
+        "Export the STL from the PrusaSlicer plate and ensure the path is correct.",
+        file=sys.stderr,
+    )
+
 
 import argparse
+import sys
 import math
 import os
 import re
@@ -428,6 +437,8 @@ def rewrite_prusaslicer_gcode(
 
 def resolve_stl_for_gcode(gcode_path: str, explicit_stl: Optional[str] = None) -> str:
     if explicit_stl:
+        if not os.path.isfile(explicit_stl):
+            raise FileNotFoundError(explicit_stl)
         return explicit_stl
     lines = open(gcode_path, "r", encoding="utf-8", errors="replace").read().splitlines(True)
     name = extract_model_filename(lines)
@@ -457,7 +468,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--enable-first-layer", action="store_true", help="Allow modifications on first layer (not recommended).")
     args = ap.parse_args(list(argv) if argv is not None else None)
 
-    stl = resolve_stl_for_gcode(args.gcode, args.stl)
+    try:
+
+        stl = resolve_stl_for_gcode(args.gcode, args.stl)
+
+    except FileNotFoundError as e:
+
+        _print_missing_stl_error(str(e))
+
+        return 2
     out_path = args.out or args.gcode
 
     with open(args.gcode, "r", encoding="utf-8", errors="replace") as f:

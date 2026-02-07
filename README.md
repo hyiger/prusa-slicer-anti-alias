@@ -45,3 +45,11 @@ This script **does not support Prusa binary G-code (.bgcode)**.
 If binary G-code is enabled, the script will exit with a clear error message.
 Disable **Printer Settings → General → Use binary G-code**, then re-slice
 to generate standard text G-code before using this post-processing script.
+
+
+## STL requirement
+
+This post-processing script needs access to the original STL to raycast the surface.
+If the STL cannot be found, the script will exit with a clear error message.
+When using PrusaConnect (which uses temporary G-code paths), passing `--stl /path/to/model.stl`
+is the most reliable workflow.
