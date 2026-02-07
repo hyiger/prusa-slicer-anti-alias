@@ -37,3 +37,11 @@ python3 /path/to/prusaslicer_anti_alias_z.py "$GCODE" --stl /path/to/model.stl
 pip install -r requirements.txt
 pytest -q
 ```
+
+## Binary G-code (.bgcode)
+
+This script **does not support Prusa binary G-code (.bgcode)**.
+
+If binary G-code is enabled, the script will exit with a clear error message.
+Disable **Printer Settings → General → Use binary G-code**, then re-slice
+to generate standard text G-code before using this post-processing script.
