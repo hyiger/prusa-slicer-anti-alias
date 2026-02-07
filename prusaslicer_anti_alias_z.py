@@ -279,11 +279,14 @@ def rewrite_prusaslicer_gcode(
     mesh = trimesh.load_mesh(mesh_path, force="mesh")
     if not isinstance(mesh, trimesh.Trimesh):
         raise RuntimeError("Mesh did not load as a single Trimesh")
-    mesh.remove_duplicate_faces()
-    mesh.remove_degenerate_faces()
-    mesh.remove_unreferenced_vertices()
+    # Mesh cleanup (compatible across trimesh versions)
+    if hasattr(mesh, "remove_duplicate_faces"):
+        mesh.remove_duplicate_faces()
+    if hasattr(mesh, "remove_degenerate_faces"):
+        mesh.remove_degenerate_faces()
+    if hasattr(mesh, "remove_unreferenced_vertices"):
+        mesh.remove_unreferenced_vertices()
     mesh.process(validate=True)
-
     proj = VerticalProjector(mesh, cell_size=nozzle_diam)
 
     st = ModalState()
