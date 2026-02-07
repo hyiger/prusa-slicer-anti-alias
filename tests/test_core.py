@@ -7,7 +7,7 @@ import tempfile
 import numpy as np
 import trimesh
 
-from anti_alias_prusaslicer.core import (
+from prusaslicer_anti_alias_z import (
     extract_model_filename,
     infer_layer_height_prusaslicer,
     rewrite_prusaslicer_gcode,
