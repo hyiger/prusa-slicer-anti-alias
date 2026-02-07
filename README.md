@@ -1,7 +1,7 @@
 # PrusaSlicer Z Anti-Aliasing Post-Processor
 
 Implements a practical version of sub-layer toolpath Z "anti-aliasing" by vertically raycasting into the original STL
-and adding small Z offsets to extrusion moves. Inspired by *Anti-aliasing for fused filament deposition* (Song et al., 2017). fileciteturn0file0
+and adding small Z offsets to extrusion moves. Inspired by *Anti-aliasing for fused filament deposition* (Song et al., 2017).
 
 ## Usage (PrusaSlicer)
 
