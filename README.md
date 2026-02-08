@@ -1,7 +1,7 @@
 # PrusaSlicer Z Anti-Aliasing Post-Processor
 
 Implements a practical version of sub-layer toolpath Z "anti-aliasing" by vertically raycasting into the original STL
-and adding small Z offsets to extrusion moves. Inspired by *Anti-aliasing for fused filament deposition* (Song et al., 2017).
+and adding small Z offsets to extrusion moves. Inspired by *Anti-aliasing for fused filament deposition* (Song et al., 2017). fileciteturn0file0
 
 ## Usage (PrusaSlicer)
 
@@ -67,3 +67,27 @@ This post-processing script needs access to the original STL to raycast the surf
 If the STL cannot be found, the script will exit with a clear error message.
 When using PrusaConnect (which uses temporary G-code paths), passing `--stl /path/to/model.stl`
 is the most reliable workflow.
+
+## PrusaSlicer post-processing behavior (important)
+
+PrusaSlicer may run post-processing scripts in a hybrid mode:
+
+- The generated G-code may be piped to stdin
+- One or more temporary filenames may be appended as extra arguments (some builds append a `.gcode.pp` path)
+
+This script supports both modes:
+
+- If a G-code path is provided, it reads from disk and overwrites that file by default.
+- If no path is provided, it reads from stdin and writes to stdout.
+
+### Recommended PrusaSlicer command (macOS + Homebrew Python)
+
+```bash
+/opt/homebrew/bin/python3 /Users/rlewis/prusa-slicer-anti-alias-z/prusaslicer_anti_alias_z.py "${GCODE}"
+```
+
+If PrusaSlicer runs the script in stdin mode, pass the STL explicitly:
+
+```bash
+/opt/homebrew/bin/python3 /Users/rlewis/prusa-slicer-anti-alias-z/prusaslicer_anti_alias_z.py "${GCODE}" --stl "/path/to/model.stl"
+```

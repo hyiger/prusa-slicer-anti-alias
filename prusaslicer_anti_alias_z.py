@@ -471,21 +471,6 @@ def resolve_stl_for_gcode(gcode_path: str, explicit_stl: Optional[str] = None) -
     raise FileNotFoundError("Could not resolve STL. Provide --stl or ensure M486 A<file.stl> is present and the STL is alongside the gcode.")
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
-    ap = argparse.ArgumentParser(
-        description="PrusaSlicer post-processing: sub-layer Z anti-aliasing via vertical STL raycasts."
-    )
-    ap.add_argument("gcode", help="Input G-code path (PrusaSlicer). This script edits in-place by default.")
-    ap.add_argument("--stl", default=None, help="STL path. If omitted, derived from 'M486 A<name>.stl' and resolved near the gcode.")
-    ap.add_argument("--out", default=None, help="Output G-code path. Default: overwrite input file.")
-    ap.add_argument("--nozzle", type=float, default=None, help="Nozzle diameter (mm). If omitted, auto-detected from G-code header ; nozzle_diameter = ...")
-    ap.add_argument("--max-dz-frac", type=float, default=0.5, help="Clamp dz to ±(HEIGHT * frac). Default 0.5 => ±h/2.")
-    ap.add_argument("--include-type", action="append", default=None,
-                    help="PrusaSlicer ;TYPE: to modify (can repeat). Default: External perimeter, Perimeter, Top solid infill.")
-    ap.add_argument("--include-infill", action="store_true", help="Also include Solid infill and Infill.")
-    ap.add_argument("--enable-first-layer", action="store_true", help="Allow modifications on first layer (not recommended).")
-    args = ap.parse_args(list(argv) if argv is not None else None)
-
     try:
 
         stl = resolve_stl_for_gcode(args.gcode, args.stl)
@@ -530,8 +515,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 # ---- CLI (PrusaSlicer post-processing entrypoint) ----
 
-
 def is_binary_gcode(path: str) -> bool:
+    """Best-effort check for PrusaSlicer Binary G-code (.bgcode)."""
     if path.lower().endswith(".bgcode"):
         return True
     try:
@@ -541,7 +526,139 @@ def is_binary_gcode(path: str) -> bool:
         return False
 
 
-#!/usr/bin/env python3
+
+def _print_missing_stl_for_stdin() -> None:
+    print(
+        "ERROR: STL path is required when reading G-code from stdin.\n"
+        "PrusaSlicer often pipes G-code to stdin during post-processing.\n"
+        "Provide --stl /path/to/model.stl in the post-processing command.",
+        file=sys.stderr,
+    )
+
+
+def is_binary_gcode(path: str) -> bool:
+    '''Best-effort check for PrusaSlicer Binary G-code (.bgcode).'''
+    if path.lower().endswith(".bgcode"):
+        return True
+    try:
+        with open(path, "rb") as f:
+            return b"\x00" in f.read(1024)
+    except OSError:
+        return False
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    ap = argparse.ArgumentParser(
+        description="PrusaSlicer post-processing: sub-layer Z anti-aliasing via vertical STL raycasts."
+    )
+    ap.add_argument(
+        "gcode",
+        nargs="*",
+        help=(
+            "Input G-code path(s). PrusaSlicer may pass multiple paths; the first is used. "
+            "If omitted, G-code is read from stdin."
+        ),
+    )
+    ap.add_argument(
+        "--stl",
+        default=None,
+        help="STL path. If omitted and a G-code path is provided, derived from 'M486 A<name>.stl' and resolved near the gcode.",
+    )
+    ap.add_argument(
+        "--out",
+        default=None,
+        help="Output G-code path. Default: overwrite input file if a path is provided, otherwise write to stdout.",
+    )
+    ap.add_argument(
+        "--nozzle",
+        type=float,
+        default=None,
+        help="Nozzle diameter (mm). If omitted, auto-detected from G-code header '; nozzle_diameter = ...'.",
+    )
+    ap.add_argument(
+        "--max-dz-frac",
+        type=float,
+        default=0.5,
+        help="Clamp dz to ±(HEIGHT * frac). Default 0.5 => ±h/2.",
+    )
+    ap.add_argument(
+        "--include-type",
+        action="append",
+        default=None,
+        help="PrusaSlicer ;TYPE: to modify (can repeat). Default: External perimeter, Perimeter, Top solid infill.",
+    )
+    ap.add_argument("--include-infill", action="store_true", help="Also include Solid infill and Infill.")
+    ap.add_argument("--enable-first-layer", action="store_true", help="Allow modifications on first layer (not recommended).")
+    args = ap.parse_args(list(argv) if argv is not None else None)
+
+    gcode_path: Optional[str] = args.gcode[0] if args.gcode else None
+
+    if gcode_path is not None and is_binary_gcode(gcode_path):
+        print(
+            "ERROR: Binary G-code (.bgcode) is not supported. Disable 'Use binary G-code' in PrusaSlicer.",
+            file=sys.stderr,
+        )
+        return 2
+
+    # Read G-code once
+    if gcode_path:
+        with open(gcode_path, "r", encoding="utf-8", errors="replace") as f:
+            lines = f.readlines()
+    else:
+        lines = sys.stdin.read().splitlines(keepends=True)
+
+    # Resolve STL
+    try:
+        if args.stl is not None:
+            if not os.path.isfile(args.stl):
+                raise FileNotFoundError(args.stl)
+            stl = args.stl
+        else:
+            if gcode_path is None:
+                _print_missing_stl_for_stdin()
+                return 2
+            stl = resolve_stl_for_gcode(gcode_path, None)
+    except FileNotFoundError as e:
+        _print_missing_stl_error(str(e))
+        return 2
+
+    # Resolve nozzle
+    nozzle = args.nozzle
+    if nozzle is None:
+        nozzle = extract_nozzle_from_gcode(lines)
+        if nozzle is None:
+            print(
+                "ERROR: Could not auto-detect nozzle diameter from G-code header. Provide --nozzle explicitly.",
+                file=sys.stderr,
+            )
+            return 2
+
+    include_types = args.include_type or ["External perimeter", "Perimeter", "Top solid infill"]
+    if args.include_infill:
+        include_types += ["Solid infill", "Infill"]
+
+    rewritten = rewrite_prusaslicer_gcode(
+        lines=lines,
+        mesh_path=stl,
+        nozzle_diam=nozzle,
+        max_dz_frac=args.max_dz_frac,
+        include_types=tuple(include_types),
+        disable_first_layer=(not args.enable_first_layer),
+    )
+
+    # Write output
+    if args.out:
+        with open(args.out, "w", encoding="utf-8") as f:
+            f.writelines(rewritten)
+    else:
+        if gcode_path:
+            with open(gcode_path, "w", encoding="utf-8") as f:
+                f.writelines(rewritten)
+        else:
+            sys.stdout.writelines(rewritten)
+
+    return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
