@@ -315,6 +315,7 @@ def rewrite_prusaslicer_gcode(
     if hasattr(mesh, "remove_unreferenced_vertices"):
         mesh.remove_unreferenced_vertices()
     proj = VerticalProjector(mesh, cell_size=nozzle_diam)
+    mesh_ray_dist = float(mesh.bounds[1][2] - mesh.bounds[0][2] + 1.0)
 
     st = ModalState()
     ctx = Context()
@@ -398,7 +399,7 @@ def rewrite_prusaslicer_gcode(
 
             if can_modify:
                 dz_max = layer_h * max_dz_frac
-                ray_dist = max_ray_dist if max_ray_dist is not None else (layer_h * (max_dz_frac + 1.0))
+                ray_dist = max_ray_dist if max_ray_dist is not None else mesh_ray_dist
 
                 # For PrusaSlicer: XYZ absolute + E relative is typical; we will emit absolute XYZ with explicit Z.
                 # Split move in XY, distribute E linearly.

@@ -127,3 +127,16 @@ def test_rewrite_splits_extrusion_and_preserves_total_e():
                     if p.startswith("E"):
                         e_vals.append(float(p[1:]))
         assert sum(e_vals) == pytest.approx(1.0, rel=1e-6)
+
+        # At z=1.0, dz would be +0.55 but should be clamped to +0.125 => z_new=0.575.
+        # Ensure at least one rewritten segment has Z > 0.45 (i.e., Z was adjusted).
+        z_vals = []
+        for ln in out:
+            if ln.startswith("G1") and " Z" in ln and " E" in ln:
+                for p in ln.split():
+                    if p.startswith("Z"):
+                        z_vals.append(float(p[1:]))
+        assert z_vals, "Expected Z values on rewritten segments"
+        assert max(z_vals) > 0.45
+
+
