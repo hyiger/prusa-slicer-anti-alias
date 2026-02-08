@@ -167,11 +167,3 @@ To verify the script is active, inspect the rewritten G-code and confirm that **
 This approach tends to be most visible on **large planar slopes** (chamfers, drafted faces, ramps) where toolpaths contain longer segments that can be subdivided.  
 On highly tessellated curved meshes, the slicer may already approximate the surface well, and the visible improvement can be subtle.
 
----
-
-## Status
-
-- ✅ Unit-tested
-- ✅ PrusaSlicer-compatible
-- ✅ stdin + argv tolerant
-- ❌ Binary G-code unsupported (by design)
