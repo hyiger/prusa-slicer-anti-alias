@@ -89,6 +89,24 @@ def extract_model_filename(lines: Sequence[str]) -> Optional[str]:
     return None
 
 
+def extract_nozzle_from_gcode(lines):
+    """Extract nozzle diameter from a PrusaSlicer-generated G-code header.
+
+    PrusaSlicer emits a header comment like:
+        ; nozzle_diameter = 0.4
+
+    We scan header comment lines until the first non-comment line.
+    """
+    for ln in lines:
+        if ln.startswith(";"):
+            m = re.search(r"nozzle_diameter\s*=\s*([0-9]*\.?[0-9]+)", ln)
+            if m:
+                return float(m.group(1))
+        else:
+            break
+    return None
+
+
 def infer_layer_height_prusaslicer(lines: Sequence[str]) -> Optional[float]:
     """
     Prefer ;HEIGHT:... values (PrusaSlicer emits them at each layer change).
@@ -460,7 +478,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("gcode", help="Input G-code path (PrusaSlicer). This script edits in-place by default.")
     ap.add_argument("--stl", default=None, help="STL path. If omitted, derived from 'M486 A<name>.stl' and resolved near the gcode.")
     ap.add_argument("--out", default=None, help="Output G-code path. Default: overwrite input file.")
-    ap.add_argument("--nozzle", type=float, default=0.4, help="Nozzle diameter (also resample step), mm.")
+    ap.add_argument("--nozzle", type=float, default=None, help="Nozzle diameter (mm). If omitted, auto-detected from G-code header ; nozzle_diameter = ...")
     ap.add_argument("--max-dz-frac", type=float, default=0.5, help="Clamp dz to ±(HEIGHT * frac). Default 0.5 => ±h/2.")
     ap.add_argument("--include-type", action="append", default=None,
                     help="PrusaSlicer ;TYPE: to modify (can repeat). Default: External perimeter, Perimeter, Top solid infill.")
@@ -481,6 +499,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     with open(args.gcode, "r", encoding="utf-8", errors="replace") as f:
         lines = f.readlines()
+    # Resolve nozzle diameter: CLI override wins, otherwise auto-detect from G-code header
+    nozzle = args.nozzle
+    if nozzle is None:
+        nozzle = extract_nozzle_from_gcode(lines)
+        if nozzle is None:
+            raise RuntimeError(
+                "Could not auto-detect nozzle diameter from G-code header. "
+                "Provide --nozzle explicitly."
+            )
+
 
     include_types = args.include_type or ["External perimeter", "Perimeter", "Top solid infill"]
     if args.include_infill:
@@ -489,7 +517,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     rewritten = rewrite_prusaslicer_gcode(
         lines=lines,
         mesh_path=stl,
-        nozzle_diam=args.nozzle,
+        nozzle_diam=nozzle,
         max_dz_frac=args.max_dz_frac,
         include_types=tuple(include_types),
         disable_first_layer=(not args.enable_first_layer),
